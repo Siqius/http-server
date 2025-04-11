@@ -5,8 +5,9 @@ const {
   removeMessage,
   getMessages,
 } = require("./src/data-manager");
+const { AppDataSource } = require("./src/data-source");
 
-const server = createServer((request: any, response: any) => {
+const server = createServer(async (request: any, response: any) => {
   let url: string = request.url;
   let params: Array<string> = [];
   let paramMap: Map<string, string> = new Map();
@@ -16,7 +17,7 @@ const server = createServer((request: any, response: any) => {
     path = url.split("?")[0];
     params = url.split("?")[1].split("&");
   } catch (e) {
-    console.log("no params");
+    console.log("No parameters");
   }
 
   for (let i = 0; i < params.length; i++) {
@@ -26,8 +27,6 @@ const server = createServer((request: any, response: any) => {
 
   response.writeHead(200, { "Content-Type": "application/json" });
 
-  console.log(path);
-
   if (path === "/add-message") {
     let author: string = paramMap.get("author") || null;
     let message: string = paramMap.get("message") || null;
@@ -36,55 +35,51 @@ const server = createServer((request: any, response: any) => {
     if (author === null || message === null) {
       response.write(JSON.stringify({ response: "author or message is null" }));
       response.end();
-
       return;
     }
 
-    console.log(author, message, imageURI);
-
-    addMessage(author, message, imageURI);
+    await addMessage(author, message, imageURI);
 
     response.write(JSON.stringify({ response: "ok" }));
     response.end();
-
     return;
   }
 
   if (path === "/remove-message") {
     let id: string = paramMap.get("id") || null;
 
-    try {
-      parseInt(id);
-    } catch {
+    if (!id || isNaN(parseInt(id))) {
       response.write(JSON.stringify({ response: "id is not a number" }));
       response.end();
-
       return;
     }
 
-    removeMessage(parseInt(id));
+    await removeMessage(parseInt(id));
 
     response.write(JSON.stringify({ response: "ok" }));
     response.end();
-
     return;
   }
 
   if (path === "/get-messages") {
-    let messages: Array<any> = getMessages();
-    let messagesString: string = JSON.stringify(messages);
+    let messages = await getMessages();
+    let messagesString = JSON.stringify(messages);
 
-    response.write(JSON.stringify({ response: messagesString }));
+    response.write(JSON.stringify({ response: messages }));
     response.end();
-
-    console.log(messagesString);
 
     return;
   }
+
   response.write(JSON.stringify({ error: "404" }));
   response.end();
-  console.log("404");
   return;
 });
 
-server.listen(8080);
+AppDataSource.initialize()
+  .then(() => {
+    server.listen(8080);
+  })
+  .catch((err) => {
+    console.error("Failed to initialize DB:", err);
+  });
